@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  SOLANA_VERSION: "4.3.0"
+  ANCHOR_VERSION: "1.2.1"
+
+jobs:
+  program:
+    name: Program (Rust)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install Solana CLI
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/v${SOLANA_VERSION}/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+
+      - name: Install Anchor CLI
+        run: |
+          cargo install --git https://github.com/solana-foundation/anchor avm --locked
+          avm install ${ANCHOR_VERSION}
+          avm use ${ANCHOR_VERSION}
+
+      - name: Format
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Build
+        run: anchor build
+
+      - name: Unit, property and LiteSVM tests
+        run: cargo test -p otc_desk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: program
+          path: |
+            target/deploy/*.so
+            target/idl/*.json
+
+  app:
+    name: Blink app (TypeScript)
+    needs: program
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: program
+          path: target
+
+      - name: Install Solana CLI
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/v${SOLANA_VERSION}/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+
+      - run: npm ci
+      - name: Client is up to date with the IDL
+        run: npm run generate-client && git diff --exit-code app/src/generated
+      - run: npm run typecheck -w app
+      - run: npm test -w app
+      - name: End-to-end against solana-test-validator
+        run: npm run test:e2e -w app
+      - run: npm run build -w app

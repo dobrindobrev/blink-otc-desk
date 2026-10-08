@@ -1,3 +1,21 @@
+## 3.0.0 — Blink OTC Desk (2026, fork by Dobrin Dobrev)
+
+Forked from [solanakite/anchor-escrow-2026](https://github.com/solanakite/anchor-escrow-2026) and extended into an OTC desk:
+
+- **Anchor 1.2.1**: migrated from 0.32.1 (`CpiContext::new` now takes a program ID, regenerated lockfile, `[registry]` removed)
+- **New program ID and name** (`otc_desk`), so it can be deployed independently of upstream
+- **Security fix: offers are scoped per maker.** Upstream derived offers from `["offer", id]`, so anyone could squat or front-run another maker's ID. Offers now live at `["offer", maker, id]`
+- **Partial fills**: optional, priced pro rata and rounded up for the maker; the final fill settles the remainder, so the maker always receives at least the asking price (property-tested)
+- **Taker price guard**: `max_token_b_amount` stops a taker overpaying if an offer changes between quote and signing
+- **Expiry**: offers can expire; after expiry anyone can crank a refund back to the maker
+- **Mixed token programs**: each side has its own token program, so SPL Token ↔ Token-2022 pairs work
+- **Token-2022 transfer fees**: offers record what actually reached the vault, and withheld fees are harvested before closing the vault (without this, fee-bearing offers could never close)
+- **Clear errors**: upstream mapped token-CPI failures to custom errors with `map_err`, which never fires because a failed CPI aborts the transaction. Balances are now checked up front
+- **Events**: `OfferMade`, `OfferTaken`, `OfferClosed` for indexers
+- **Blink app** (`app/`): Next.js + `@solana/kit` Solana Actions API, offer list and offer pages, maker CLI
+- **Tests**: LiteSVM suite rewritten for the new behaviour (16 tests) plus property tests for pricing; end-to-end Blink tests against `solana-test-validator`
+- **CI**: rustfmt, clippy `-D warnings`, LiteSVM, client-drift check, typecheck, e2e and build
+
 ## 2.1.0 (2026)
 
 - Updated to Anchor 0.32.1

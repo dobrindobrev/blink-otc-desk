@@ -6,3 +6,14 @@ node_modules
 test-ledger
 dist
 .tap
+.next
+next-env.d.ts
+*.tsbuildinfo
+*.log
+
+# Secrets — never commit keypairs or env files
+.env
+.env.*
+!.env.example
+*-keypair.json
+id.json
